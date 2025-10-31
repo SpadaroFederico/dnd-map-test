@@ -1,4 +1,4 @@
-import { Stage, Layer, Rect, Text, Transformer, Image as KonvaImage } from "react-konva";
+import { Stage, Layer, Rect, Text, Transformer, Image as KonvaImage, Group } from "react-konva";
 import { useEditorStore } from "./store/editStore";
 import { useRef, useEffect, useState } from "react";
 import LeftSidebar from "./components/LeftSidebar";
@@ -52,73 +52,75 @@ async function generateBlendedTexture(
   images: HTMLImageElement[],
   viewW: number,
   viewH: number
-): Promise<HTMLImageElement> {
-  // Allinea il mondo su griglia e scala desiderata
-  const mapWidth = Math.ceil((viewW * WORLD_SCALE) / TILE_SIZE) * TILE_SIZE;
-  const mapHeight = Math.ceil((viewH * WORLD_SCALE) / TILE_SIZE) * TILE_SIZE;
+  ): Promise<HTMLImageElement> {
+    // Allinea il mondo su griglia e scala desiderata
+    const mapWidth = Math.ceil((viewW * WORLD_SCALE) / TILE_SIZE) * TILE_SIZE;
+    const mapHeight = Math.ceil((viewH * WORLD_SCALE) / TILE_SIZE) * TILE_SIZE;
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  canvas.width = mapWidth;
-  canvas.height = mapHeight;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    canvas.width = mapWidth;
+    canvas.height = mapHeight;
 
-  const scale = 0.007; // frequenza del noise
+    const scale = 0.007; // frequenza del noise
 
-  // safety: almeno 1 immagine “buona”
-  const good = images.filter(Boolean);
-  const fallback = good[0];
+    // safety: almeno 1 immagine “buona”
+    const good = images.filter(Boolean);
+    const fallback = good[0];
 
-  for (let x = 0; x < mapWidth; x += TILE_SIZE) {
-    for (let y = 0; y < mapHeight; y += TILE_SIZE) {
-      const n = (noise2D(x * scale, y * scale) + 1) / 2;
-      const random = Math.random() * 0.1 - 0.05;
-      let idx = Math.floor((n + random) * images.length);
-      if (idx < 0) idx = 0;
-      if (idx >= images.length) idx = images.length - 1;
+    for (let x = 0; x < mapWidth; x += TILE_SIZE) {
+      for (let y = 0; y < mapHeight; y += TILE_SIZE) {
+        const n = (noise2D(x * scale, y * scale) + 1) / 2;
+        const random = Math.random() * 0.1 - 0.05;
+        let idx = Math.floor((n + random) * images.length);
+        if (idx < 0) idx = 0;
+        if (idx >= images.length) idx = images.length - 1;
 
-      let img = images[idx] || fallback;
-      if (!img) {
-        // ultimo fallback assoluto: riempi un quadretto per evitare buchi visivi
-        ctx.fillStyle = "#6f8a4f";
-        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-        continue;
+        let img = images[idx] || fallback;
+        if (!img) {
+          // ultimo fallback assoluto: riempi un quadretto per evitare buchi visivi
+          ctx.fillStyle = "#6f8a4f";
+          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = 0.95 + Math.random() * 0.05;
+        ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        ctx.restore();
       }
-
-      ctx.save();
-      ctx.globalAlpha = 0.95 + Math.random() * 0.05;
-      ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
-      ctx.restore();
     }
+
+    const finalImg = new Image();
+    finalImg.src = canvas.toDataURL("image/png");
+    await new Promise((res) => (finalImg.onload = res));
+    return finalImg;
   }
 
-  const finalImg = new Image();
-  finalImg.src = canvas.toDataURL("image/png");
-  await new Promise((res) => (finalImg.onload = res));
-  return finalImg;
-}
+  /** =========================
+   *  Rettangolo draggable “a prova di jitter”
+   *  - usa posizione locale durante il drag
+   *  - commit allo store solo a fine drag
+   *  ========================= */
+  function DraggableRect({
+    obj,
+    isSelected,
+    currentTool,
+    blendedImage,
+    selectObject,
+    moveObject,
+    setIsDraggingObject,
+  }: {
+    obj: any;
+    isSelected: boolean;
+    currentTool: Tool;
+    blendedImage: HTMLImageElement | null;
+    // ⬇️ PRIMA: selectObject: (id: string) => void;
+    selectObject: (id: string, multi?: boolean) => void;
+    moveObject: (id: string, x: number, y: number) => void;
+    setIsDraggingObject: (v: boolean) => void;
+  }) {
 
-/** =========================
- *  Rettangolo draggable “a prova di jitter”
- *  - usa posizione locale durante il drag
- *  - commit allo store solo a fine drag
- *  ========================= */
-function DraggableRect({
-  obj,
-  isSelected,
-  currentTool,
-  blendedImage,
-  selectObject,
-  moveObject,
-  setIsDraggingObject,
-}: {
-  obj: any;
-  isSelected: boolean;
-  currentTool: Tool;
-  blendedImage: HTMLImageElement | null;
-  selectObject: (id: string) => void;
-  moveObject: (id: string, x: number, y: number) => void;
-  setIsDraggingObject: (v: boolean) => void;
-}) {
   const shapeRef = useRef<Konva.Rect>(null);
   const [dragging, setDragging] = useState(false);
   const [localPos, setLocalPos] = useState({ x: obj.x, y: obj.y });
@@ -159,48 +161,71 @@ function DraggableRect({
 
       onMouseDown={(e) => {
         if (currentTool !== "select") return;
-        selectObject(obj.id);
+        const multi = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey; // supporta Win/Mac
+        selectObject(obj.id, multi);   // ⬅️ passa il secondo argomento
         e.cancelBubble = true;
       }}
 
       onDragStart={(e) => {
         if (currentTool !== "select") return;
-        selectObject(obj.id);
+
+        // Seleziona (supporta Ctrl/Shift)
+        selectObject(obj.id, e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey);
         setDragging(true);
         setIsDraggingObject(true);
         e.cancelBubble = true;
+
+        const store = useEditorStore.getState();
+        const selectedObjects = store.objects.filter(o => store.selectedIds.includes(o.id));
+        const start = e.target.position();
+
+        // Salva offset relativi per ogni oggetto
+        selectedObjects.forEach(o => {
+          o.__offsetX = o.x - start.x;
+          o.__offsetY = o.y - start.y;
+        });
+
         const stage = e.target.getStage();
-        if (stage) {
-          stage.draggable(false);
-          console.log("[DragStart] Blocca pan Stage. scale=", stage.scaleX(), "stagePos=", { x: stage.x(), y: stage.y() });
-        }
-        console.log("[DragStart] obj.id=", obj.id, "start localPos=", localPos);
+        if (stage) stage.draggable(false);
       }}
 
       onDragMove={(e) => {
         if (currentTool !== "select") return;
+
+        const store = useEditorStore.getState();
+        const selectedObjects = store.objects.filter(o => store.selectedIds.includes(o.id));
         const { x, y } = e.target.position();
-        setLocalPos({ x, y }); // solo stato locale: nessun re-render da store qui
+        const stage = e.target.getStage();
+
+        // Aggiorna posizione locale per tutti gli oggetti selezionati
+        selectedObjects.forEach(o => {
+          const node = stage?.findOne(`#${o.id}`) as Konva.Rect;
+          if (node) {
+            node.position({
+              x: x + (o.__offsetX ?? 0),
+              y: y + (o.__offsetY ?? 0),
+            });
+          }
+        });
       }}
 
       onDragEnd={(e) => {
         if (currentTool !== "select") return;
+
+        const store = useEditorStore.getState();
+        const { selectedIds, objects, moveObject } = store;
         const { x, y } = e.target.position();
 
-        // 👇 Mantieni la shape esattamente dove l’hai lasciata
-        setLocalPos({ x, y });
+        selectedIds.forEach(id => {
+          const o = objects.find(obj => obj.id === id);
+          if (o) moveObject(id, x + (o.__offsetX ?? 0), y + (o.__offsetY ?? 0));
+        });
 
-        // ⛔️ Non chiudere ancora il "dragging": aspetta lo store nel useEffect
+        setDragging(false);
         setIsDraggingObject(false);
 
-        // Commit una volta sola allo store (usa gli stessi x,y di localPos)
-        moveObject(obj.id, x, y);
-
         const stage = e.target.getStage();
-        if (stage) {
-          stage.draggable(currentTool !== "select");
-          console.log("[DragEnd] Commit store e (forse) sblocca pan Stage:", currentTool !== "select", "final pos=", { x, y });
-        }
+        if (stage) stage.draggable(false);
       }}
 
       dragBoundFunc={(pos) => {
@@ -229,6 +254,68 @@ function DraggableRect({
   );
 }
 
+function SelectionGroup({
+  selectedIds,
+  objects,
+  moveObject,
+  stageRef,
+}: {
+  selectedIds: string[];
+  objects: any[];
+  moveObject: (id: string, x: number, y: number) => void;
+  stageRef: React.RefObject<Konva.Stage | null>;
+}) {
+  if (selectedIds.length <= 1) return null;
+
+  const groupRef = useRef<Konva.Group>(null);
+  const selectedObjects = objects.filter(o => selectedIds.includes(o.id));
+
+  const bounds = {
+    x: Math.min(...selectedObjects.map(o => o.x)),
+    y: Math.min(...selectedObjects.map(o => o.y)),
+    w: Math.max(...selectedObjects.map(o => o.x + o.width)) - Math.min(...selectedObjects.map(o => o.x)),
+    h: Math.max(...selectedObjects.map(o => o.y + o.height)) - Math.min(...selectedObjects.map(o => o.y)),
+  };
+
+  return (
+    <Group
+      ref={groupRef}
+      x={bounds.x}
+      y={bounds.y}
+      draggable
+      onDragMove={(e: Konva.KonvaEventObject<DragEvent>) => {
+        const { x, y } = e.target.position();
+        const dx = x - bounds.x;
+        const dy = y - bounds.y;
+        const stage = stageRef.current;
+        if (!stage) return;
+
+        selectedObjects.forEach(o => {
+          const node = stage.findOne(`#${o.id}`) as Konva.Rect;
+          if (node) node.position({ x: o.x + dx, y: o.y + dy });
+        });
+      }}
+      onDragEnd={(e: Konva.KonvaEventObject<DragEvent>) => {
+        const { x, y } = e.target.position();
+        const dx = x - bounds.x;
+        const dy = y - bounds.y;
+        selectedObjects.forEach(o => {
+          moveObject(o.id, o.x + dx, o.y + dy);
+        });
+      }}
+    >
+      {/* hitbox invisibile per il drag di gruppo */}
+      <Rect
+        x={0}
+        y={0}
+        width={bounds.w}
+        height={bounds.h}
+        fill="rgba(0,0,0,0)" // completamente trasparente ma “attivo”
+        listening={true}
+      />
+    </Group>
+  );
+}
 
 export default function App() {
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -238,6 +325,7 @@ export default function App() {
   const {
     objects,
     selectedId,
+    selectedIds,
     currentTool,
     addObject,
     selectObject,
@@ -251,6 +339,10 @@ export default function App() {
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [tileset, setTileset] = useState<TilesetType>(DEFAULT_TILESET);
   const [isManualPan, setIsManualPan] = useState(false);
+    // Box di selezione multipla
+  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+
 
 
   console.log("[Render] currentTool=", currentTool);
@@ -295,40 +387,31 @@ export default function App() {
    *  ========================= */
   const clampPosition = (pos: Vec2, scaleOverride?: number): Vec2 => {
     if (!blendedImage) return pos;
-    const scale = scaleOverride ?? stageScale;
 
+    const scale = scaleOverride ?? stageScale;
     const mapW = blendedImage.width * scale;
     const mapH = blendedImage.height * scale;
     const viewW = window.innerWidth;
     const viewH = window.innerHeight;
 
-    // quando il mondo è più piccolo della viewport -> centrato perfetto
-    if (mapW <= viewW && mapH <= viewH) {
-      return { x: (viewW - mapW) / 2, y: (viewH - mapH) / 2 };
-    }
+    // ✅ Caso 1: mappa più piccola → pan libero, nessun blocco
+    if (mapW <= viewW && mapH <= viewH) return pos;
 
-    // solo una dimensione più piccola -> centra quella
-    let minX: number, maxX: number, minY: number, maxY: number;
+    // ✅ Caso 2: solo una dimensione più piccola → permetti pan sull’altra
+    const pad = PAN_PADDING / scale; // padding dinamico in base allo zoom
+    let minX = Math.min(0, viewW - mapW) - pad;
+    let maxX = pad;
+    let minY = Math.min(0, viewH - mapH) - pad;
+    let maxY = pad;
 
-    if (mapW < viewW) {
-      minX = maxX = (viewW - mapW) / 2;
-    } else {
-      minX = viewW - mapW - PAN_PADDING;
-      maxX = PAN_PADDING;
-    }
+    // Se la mappa è più piccola solo in una direzione → centra quella
+    if (mapW < viewW) minX = maxX = (viewW - mapW) / 2;
+    if (mapH < viewH) minY = maxY = (viewH - mapH) / 2;
 
-    if (mapH < viewH) {
-      minY = maxY = (viewH - mapH) / 2;
-    } else {
-      minY = viewH - mapH - PAN_PADDING;
-      maxY = PAN_PADDING;
-    }
-
-    const clamped = {
+    return {
       x: Math.min(Math.max(pos.x, minX), maxX),
       y: Math.min(Math.max(pos.y, minY), maxY),
     };
-    return clamped;
   };
 
   /** =========================
@@ -418,37 +501,41 @@ useEffect(() => {
    *  Aggiunta oggetti (solo su click su area vuota e tool = draw)
    *  ========================= */
   const handleStageClick = (e: any) => {
-    // clic valido solo se target è davvero lo Stage (non Layer, non Shape)
-    const stage = stageRef.current;
-    if (!stage || e.target !== stage) return;
-
-    if (useEditorStore.getState().currentTool !== "draw") return;
+  const stage = stageRef.current;
+    if (!stage) return;
 
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    // coordinate locali allo Stage (ok)
-    const transform = stage.getAbsoluteTransform().copy();
-    transform.invert();
-    const pos = transform.point(pointer);
+    // caso 1: modalità SELECT → clic sullo stage vuoto → deseleziona
+    if (useEditorStore.getState().currentTool === "select" && e.target === stage) {
+      useEditorStore.getState().deselectObject();
+      return;
+    }
 
-    addObject({
-      id: Date.now().toString(),
-      x: pos.x - 25,
-      y: pos.y - 25,
-      width: 50,
-      height: 50,
-      color: "#2ecc71",
-      rotation: 0,
-      opacity: 1,
-      shadowBlur: 5,
-      // FIX: "#000" -> "#000000" per evitare warning
-      shadowColor: "#000000",
-      visible: true,
-      layer: 1,
-    });
+    // caso 2: modalità DRAW → aggiungi nuovo oggetto
+    if (useEditorStore.getState().currentTool === "draw" && e.target === stage) {
+      const transform = stage.getAbsoluteTransform().copy();
+      transform.invert();
+      const pos = transform.point(pointer);
 
-    console.log("[AddObject] at", pos);
+      addObject({
+        id: Date.now().toString(),
+        x: pos.x - 25,
+        y: pos.y - 25,
+        width: 600,
+        height: 600,
+        color: "#2ecc71",
+        rotation: 0,
+        opacity: 1,
+        shadowBlur: 5,
+        shadowColor: "#000000",
+        visible: true,
+        layer: 1,
+      });
+
+      console.log("[AddObject] at", pos);
+    }
   };
 
   /** =========================
@@ -457,11 +544,40 @@ useEffect(() => {
   useEffect(() => {
     const transformer = transformerRef.current;
     const stage = transformer?.getStage();
-    const selectedNode = stage?.findOne(`#${selectedId}`);
-    if (selectedNode) transformer?.nodes([selectedNode]);
-    else transformer?.nodes([]);
-    transformer?.getLayer()?.batchDraw();
-  }, [selectedId, objects]);
+    if (!stage || !transformer) return;
+
+    const nodes = selectedIds
+      .map((id) => stage.findOne(`#${id}`))
+      .filter((n): n is Konva.Node => Boolean(n)); // 👈 forza il tipo
+
+    transformer.nodes(nodes);
+    transformer.getLayer()?.batchDraw();
+  }, [selectedIds, objects]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const state = useEditorStore.getState();
+
+      // ESC → deseleziona tutto
+      if (e.key === "Escape") {
+        state.deselectObject();
+        console.log("🟡 ESC → deselezionati tutti");
+      }
+
+      // DELETE o BACKSPACE → elimina selezionati
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (state.selectedIds.length > 0) {
+          state.deleteSelectedObject();
+          console.log("🔴 DELETE → eliminati", state.selectedIds);
+        }
+      }
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, []);
+
+
 
   /** =========================
    *  Forza lo stato draggable dello Stage
@@ -568,6 +684,21 @@ useEffect(() => {
             return;
           }
 
+          // Avvio drag-box di selezione multipla
+          if (currentTool === "select" && e.target === stage) {
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+
+            // converto in coordinate world
+            const transform = stage.getAbsoluteTransform().copy();
+            transform.invert();
+            const worldPos = transform.point(pointer);
+
+            setSelectionStart(worldPos);
+            setSelectionBox({ x: worldPos.x, y: worldPos.y, w: 0, h: 0 });
+            return;
+          }
+
           // ✏️ Disegna nuovo oggetto
           if (currentTool === "draw" && e.target === stage) {
             stage.draggable(false);
@@ -583,6 +714,57 @@ useEffect(() => {
           const stage = stageRef.current;
           if (!stage) return;
 
+          // 🟦 Fine selezione multipla
+          if (selectionBox && currentTool === "select") {
+            const store = useEditorStore.getState();
+
+            // La selectionBox è già in coordinate “world”
+            const box = {
+              x1: selectionBox.x,
+              y1: selectionBox.y,
+              x2: selectionBox.x + selectionBox.w,
+              y2: selectionBox.y + selectionBox.h,
+            };
+
+            const selected = store.objects
+              .filter((o) => {
+                const objLeft = o.x;
+                const objRight = o.x + o.width;
+                const objTop = o.y;
+                const objBottom = o.y + o.height;
+
+                // Controlla se l’oggetto interseca la box
+                const overlap =
+                  objRight >= box.x1 &&
+                  objLeft <= box.x2 &&
+                  objBottom >= box.y1 &&
+                  objTop <= box.y2;
+
+                return overlap;
+              })
+              .map((o) => o.id);
+
+            if (selected.length > 0) {
+              // 🔹 Aggiunge tutti gli ID in un colpo solo, non uno alla volta
+              const multi = e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey;
+              if (multi) {
+                const merged = Array.from(new Set([...store.selectedIds, ...selected]));
+                store.deselectObject(); // reset per evitare duplicati inconsistenti
+                merged.forEach((id) => store.selectObject(id, true));
+              } else {
+                // 🔹 selezione "pulita" (senza tenere la vecchia)
+                store.deselectObject();
+                selected.forEach((id) => store.selectObject(id, true));
+              }
+            } else {
+              store.deselectObject();
+            }
+
+            setSelectionStart(null);
+            setSelectionBox(null);
+            console.log("🟦 Box selezione → selezionati:", selected);
+          }
+
           // 🧭 se era pan manuale, il rilascio sarà gestito in onDragEnd
           if (isManualPan) {
             console.log("🕐 MouseUp ignorato perché pan manuale ancora attivo");
@@ -594,47 +776,27 @@ useEffect(() => {
           console.log("🧹 MouseUp → ripristino stato drag=", stage.draggable());
         }}
 
-        onDragStart={(e) => {
+        onMouseMove={(e) => {
+          if (!selectionStart) return;
           const stage = stageRef.current;
-          if (!stage || e.target !== stage) return;
-          stage.container().style.cursor = "grabbing";
-          console.log("🚀 Stage drag start", {
-            tool: currentTool,
-            draggable: stage.draggable(),
-            pos: { x: e.target.x(), y: e.target.y() },
-          });
+          if (!stage) return;
+
+          const pointer = stage.getPointerPosition();
+          if (!pointer) return;
+
+          // Converti in coordinate world
+          const transform = stage.getAbsoluteTransform().copy();
+          transform.invert();
+          const worldPos = transform.point(pointer);
+
+          const x = Math.min(worldPos.x, selectionStart.x);
+          const y = Math.min(worldPos.y, selectionStart.y);
+          const w = Math.abs(worldPos.x - selectionStart.x);
+          const h = Math.abs(worldPos.y - selectionStart.y);
+
+          setSelectionBox({ x, y, w, h });
         }}
 
-        onDragMove={(e) => {
-          const stage = stageRef.current;
-          if (!stage || e.target !== stage) return;
-
-          // NON aggiornare stagePos qui, altrimenti React blocca il movimento
-          if (isManualPan) return;
-
-          // 👇 solo se non è pan manuale (es. resize/fit automatici)
-          setStagePos({ x: e.target.x(), y: e.target.y() });
-        }}
-
-        onDragEnd={(e) => {
-          const stage = stageRef.current;
-          if (!stage || e.target !== stage) return;
-
-          setStagePos({ x: e.target.x(), y: e.target.y() });
-
-          if (isManualPan) {
-            console.log("🏁 Pan manuale dragEnd → disattivo draggable");
-            setIsManualPan(false);
-            stage.draggable((currentTool as Tool) !== "select");
-          }
-
-          stage.container().style.cursor = "grab";
-          console.log("✅ Stage drag end", {
-            tool: currentTool,
-            finalPos: { x: e.target.x(), y: e.target.y() },
-            draggable: stage.draggable(),
-          });
-        }}
       >
         {/* Sfondo (non interattivo) */}
         <Layer listening={false}>
@@ -657,7 +819,7 @@ useEffect(() => {
             <DraggableRect
               key={obj.id}
               obj={obj}
-              isSelected={obj.id === selectedId}
+              isSelected={useEditorStore.getState().selectedIds.includes(obj.id)}
               currentTool={currentTool as Tool}
               blendedImage={blendedImage}
               selectObject={selectObject}
@@ -665,6 +827,26 @@ useEffect(() => {
               setIsDraggingObject={setIsDraggingObject}
             />
           ))}
+
+          {selectionBox && (
+            <Rect
+              x={selectionBox.x}
+              y={selectionBox.y}
+              width={selectionBox.w}
+              height={selectionBox.h}
+              fill="rgba(52, 152, 219, 0.25)"
+              stroke="#3498db"
+              strokeWidth={1}
+              listening={false}
+            />
+          )}
+
+          <SelectionGroup
+            selectedIds={selectedIds}
+            objects={objects}
+            moveObject={moveObject}
+            stageRef={stageRef}
+          />
 
           <Transformer ref={transformerRef} />
         </Layer>

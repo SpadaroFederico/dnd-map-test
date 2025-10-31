@@ -1,5 +1,7 @@
 import "./ui/fantasy-ui.css";
 import { useEditorStore } from "../store/editStore";
+import { useEffect, useState } from "react";
+import { FaTimes, FaTrashAlt, FaClone } from "react-icons/fa";
 
 type MapObject = {
   id: string;
@@ -9,102 +11,111 @@ type MapObject = {
   visible: boolean; layer: number;
 };
 
-export default function RightInspector(){
+export default function RightInspector() {
   const { objects, selectedId } = useEditorStore();
   const selected = objects.find(o => o.id === selectedId) as MapObject | undefined;
+  const [visible, setVisible] = useState(true);
+
+  // ESC per chiudere il pannello
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "i") setVisible(v => !v);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  if (!visible) {
+    return (
+      <button
+        className="f-ui-inspector-toggle"
+        onClick={() => setVisible(true)}
+        title="Apri Inspector (I)"
+      >
+        🧭
+      </button>
+    );
+  }
 
   return (
-    <aside className="f-ui-panel f-ui-right">
-      <div className="f-ui-head">
+    <aside className="f-ui-panel f-ui-right enhanced">
+      <div className="f-ui-head compact">
         <div>
-          <div className="f-ui-title">📐 Inspector</div>
-          <div className="f-ui-sub">Proprietà di oggetti, layer e mappa</div>
+          <div className="f-ui-title">📜 Inspector</div>
+          <div className="f-ui-sub">Oggetto selezionato</div>
         </div>
+        <button className="f-ui-close" onClick={() => setVisible(false)}>
+          <FaTimes />
+        </button>
       </div>
 
-      <div className="f-ui-body">
-        {/* OGGETTO */}
-        <div className="f-section">
-          <div className="f-sec-title">Oggetto selezionato</div>
-          {!selected ? (
-            <div style={{color:"#7a6a55"}}>Nessun oggetto selezionato.</div>
-          ) : (
-            <>
-              <div className="f-kv"><label>ID</label><input className="f-inp" value={selected.id} disabled/></div>
-              <div className="f-kv"><label>Nome</label><input className="f-inp" placeholder="(facoltativo)" disabled/></div>
-
-              <div className="f-kv"><label>Posizione</label>
-                <div style={{display:"flex", gap:6}}>
-                  <input className="f-inp" value={Math.round(selected.x)} disabled/>
-                  <input className="f-inp" value={Math.round(selected.y)} disabled/>
-                </div>
-              </div>
-
-              <div className="f-kv"><label>Dimensioni</label>
-                <div style={{display:"flex", gap:6}}>
-                  <input className="f-inp" value={Math.round(selected.width)} disabled/>
-                  <input className="f-inp" value={Math.round(selected.height)} disabled/>
-                </div>
-              </div>
-
-              <div className="f-kv"><label>Rotazione</label><input className="f-inp" value={selected.rotation ?? 0} disabled/></div>
-              <div className="f-kv"><label>Opacità</label><input className="f-inp" value={selected.opacity} disabled/></div>
-
-              <div className="f-kv"><label>Colore</label>
-                <input type="color" className="f-inp" style={{padding:0,height:36}} value={selected.color} disabled/>
-              </div>
-
-              <div className="f-kv"><label>Ombra</label>
-                <div style={{display:"flex", gap:6}}>
-                  <input className="f-inp" value={selected.shadowBlur} disabled/>
-                  <input type="color" className="f-inp" style={{padding:0,height:36}} value={selected.shadowColor} disabled/>
-                </div>
-              </div>
-
-              <div className="f-kv"><label>Visibile</label>
-                <div className="f-switch">
-                  <input type="checkbox" checked={selected.visible} disabled/>
-                  <span style={{fontSize:12,color:"#6b5a44"}}>(read‑only per ora)</span>
-                </div>
-              </div>
-
-              <div className="f-kv"><label>Layer</label><input className="f-inp" value={selected.layer} disabled/></div>
-            </>
-          )}
-        </div>
-
-        {/* LAYER */}
-        <div className="f-section">
-          <div className="f-sec-title">Layer attivo</div>
-          <div className="f-kv"><label>Nome</label><input className="f-inp" placeholder="Terreno base" disabled/></div>
-          <div className="f-kv"><label>Visibile</label><input type="checkbox" checked readOnly/></div>
-          <div className="f-kv"><label>Opacità</label><input className="f-inp" value={"100%"} disabled/></div>
-          <div className="f-kv"><label>Fusione</label>
-            <select className="f-inp" disabled>
-              <option>Normale</option><option>Moltiplica</option><option>Sovrapponi</option>
-            </select>
+      <div className="f-ui-body slim">
+        {!selected ? (
+          <div style={{ color: "#9b8c74", textAlign: "center", marginTop: 20 }}>
+            Nessun oggetto selezionato.
+            <br />
+            <small>(clicca un elemento o disegna uno nuovo)</small>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="f-section small">
+              <div className="f-kv">
+                <label>ID</label>
+                <input className="f-inp small" value={selected.id} disabled />
+              </div>
 
-        {/* MAPPA */}
-        <div className="f-section">
-          <div className="f-sec-title">Mappa</div>
-          <div className="f-kv"><label>Dimensione mondo</label>
-            <div style={{display:"flex",gap:6}}>
-              <input className="f-inp" value={"5× schermo"} disabled/>
-              <input className="f-inp" value={"tile 256"} disabled/>
+              <div className="f-kv">
+                <label>Posizione</label>
+                <div className="f-row-2">
+                  <input className="f-inp small" value={Math.round(selected.x)} disabled />
+                  <input className="f-inp small" value={Math.round(selected.y)} disabled />
+                </div>
+              </div>
+
+              <div className="f-kv">
+                <label>Dimensioni</label>
+                <div className="f-row-2">
+                  <input className="f-inp small" value={Math.round(selected.width)} disabled />
+                  <input className="f-inp small" value={Math.round(selected.height)} disabled />
+                </div>
+              </div>
+
+              <div className="f-kv">
+                <label>Opacità</label>
+                <input className="f-inp small" value={selected.opacity} disabled />
+              </div>
+
+              <div className="f-kv">
+                <label>Colore</label>
+                <input
+                  type="color"
+                  className="f-inp"
+                  style={{ padding: 0, height: 30 }}
+                  value={selected.color}
+                  disabled
+                />
+              </div>
             </div>
-          </div>
-          <div className="f-kv"><label>Griglia</label>
-            <div className="f-switch"><input type="checkbox" /> <span style={{fontSize:12}}>mostra</span></div>
-          </div>
-          <div className="f-kv"><label>Seed</label><input className="f-inp" placeholder="(casuale)" disabled/></div>
-        </div>
 
-        <div className="f-row" style={{justifyContent:"flex-end"}}>
-          <button className="f-btn ghost">Duplica oggetto</button>
-          <button className="f-btn">Elimina</button>
-        </div>
+            <div className="f-row buttons">
+              <button
+                className="f-btn ghost"
+                disabled={!selected}
+                title="Duplica oggetto (Ctrl+D)"
+              >
+                <FaClone />
+              </button>
+              <button
+                className="f-btn danger"
+                disabled={!selected}
+                onClick={() => useEditorStore.getState().deleteSelectedObject()}
+                title="Elimina oggetto (Del)"
+              >
+                <FaTrashAlt />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );

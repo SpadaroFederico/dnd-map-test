@@ -10,9 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "favicons": "^7.2.0",
     "konva": "^10.0.8",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-icons": "^5.5.0",
     "react-konva": "^19.2.0",
     "simplex-noise": "^4.0.3",
     "zustand": "^5.0.8"
