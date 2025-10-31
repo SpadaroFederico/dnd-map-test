@@ -13,7 +13,6 @@ interface MapObject {
   opacity: number;
   shadowBlur: number;
   shadowColor: string;
-  brightness: number;
   visible: boolean;
   layer?: number;
 }
