@@ -15,7 +15,7 @@ const noise2D = createNoise2D();
  *  ========================= */
 const TILE_SIZE = 256;         // dimensione tile base (coerente con i PNG)
 const WORLD_SCALE = 6;         // quante volte lo schermo (larghezza/altezza) è il mondo
-const INITIAL_FIT = 0.85;      // quanto zoom-out all’avvio (0.85 = mostra “tutto + margine”)
+const INITIAL_FIT = 0.5;      // quanto zoom-out all’avvio (0.85 = mostra “tutto + margine”)
 
 const PAN_PADDING = 200;       // margine ai bordi quando il mondo è > viewport
 const MIN_SCALE = 0.3;         // limite di sicurezza (sostituito al runtime dal fit iniziale)
@@ -25,6 +25,17 @@ type Vec2 = { x: number; y: number };
 
 // FIX: alias tool allineato col tuo store (include "background")
 type Tool = "draw" | "select" | "background";
+
+// === Tileset di sfondo (default) ===
+const DEFAULT_TILESET = "dirt" as const; // "dirt" | "grass"
+const TILE_COUNT = 15;
+const TILE_PREFIX = {
+  grass: "grass",
+  dirt: "dirt_stylized_rock", 
+  water: "water",
+} as const;
+
+type TilesetType = keyof typeof TILE_PREFIX;
 
 /** Loader immagine robusto: se fallisce, ritorna null senza rompere */
 function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -111,6 +122,7 @@ function DraggableRect({
   const shapeRef = useRef<Konva.Rect>(null);
   const [dragging, setDragging] = useState(false);
   const [localPos, setLocalPos] = useState({ x: obj.x, y: obj.y });
+
 
   // 🔄 Quando non stai trascinando, tieni localPos allineata allo store
   useEffect(() => {
@@ -237,6 +249,9 @@ export default function App() {
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState<Vec2>({ x: 0, y: 0 });
   const [isDraggingObject, setIsDraggingObject] = useState(false);
+  const [tileset, setTileset] = useState<TilesetType>(DEFAULT_TILESET);
+  const [isManualPan, setIsManualPan] = useState(false);
+
 
   console.log("[Render] currentTool=", currentTool);
 
@@ -353,32 +368,35 @@ export default function App() {
   }, [blendedImage]);
 
   /** =========================
-   *  Caricamento robusto delle tile
-   *  ========================= */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const count = 15; // quante varianti vuoi considerare
-      const results = await Promise.all(
-        Array.from({ length: count }, (_, i) => loadImage(`/assets/tiles/grass_${i + 1}.png`))
-      );
-      if (cancelled) return;
+ *  Caricamento robusto delle tile (tileset switch)
+ *  ========================= */
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    const prefix = TILE_PREFIX[tileset as keyof typeof TILE_PREFIX];
 
-      const ok = results.filter(Boolean) as HTMLImageElement[];
-      if (ok.length === 0) {
-        console.warn("❌ Nessuna tile caricata. Controlla /assets/tiles/...");
-        return;
-      }
-      // rimpiazzo gli errori con un fallback per mantenere lunghezza costante
-      const filled = results.map((img) => img || ok[0]) as HTMLImageElement[];
-      setBgImages(filled);
-      console.log("[Tiles] loaded", filled.length);
-    })();
+    const results = await Promise.all(
+      Array.from({ length: TILE_COUNT }, (_, i) =>
+        loadImage(`/assets/tiles/${tileset}/${prefix}_${i + 1}.png`)
+      )
+    );
+    if (cancelled) return;
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const ok = results.filter(Boolean) as HTMLImageElement[];
+    if (ok.length === 0) {
+      console.warn(`❌ Nessuna tile caricata. Controlla /assets/tiles/${tileset}/`);
+      return;
+    }
+    // rimpiazzo gli errori con un fallback per mantenere lunghezza costante
+    const filled = results.map((img) => img || ok[0]) as HTMLImageElement[];
+    setBgImages(filled);
+    console.log(`[Tiles] loaded ${filled.length} from /assets/tiles/${tileset}/`);
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [tileset]);
 
   /** =========================
    *  Generazione terreno
@@ -502,45 +520,122 @@ export default function App() {
         </button>
       </div>
 
+      <div style={{ display: "flex", gap: "8px", marginLeft: "600px" }}>
+        <button onClick={() => setTileset("dirt")}>Terra</button>
+        <button onClick={() => setTileset("grass")}>Erba</button>
+        <button onClick={() => setTileset("water")}>Acqua</button>
+      </div>
+
       {/* Stage */}
       <Stage
         ref={stageRef}
         width={window.innerWidth}
         height={window.innerHeight}
-        onMouseDown={handleStageClick}
         onWheel={handleWheel}
         dragBoundFunc={(pos) => clampPosition(pos)}
-        // FIX: gestisci gli eventi di drag dello Stage **solo se il target è lo Stage**
+        draggable={(currentTool as Tool) !== "select"} 
+        x={stagePos.x}
+        y={stagePos.y}
+        scaleX={stageScale}
+        scaleY={stageScale}
+        onMouseDown={(e) => {
+          const stage = stageRef.current;
+          if (!stage) return;
+
+          const isRightClick = e.evt.button === 1;
+          const isCtrlClick = e.evt.ctrlKey;
+
+          console.log("[MouseDown]", {
+            button: e.evt.button,
+            ctrl: e.evt.ctrlKey,
+            tool: currentTool,
+            target: e.target.getClassName(),
+            draggable: stage.draggable(),
+          });
+
+          // 🧭 PAN MANUALE (tasto destro o Ctrl)
+          if (isRightClick || isCtrlClick) {
+            stage.draggable(true);
+            setIsManualPan(true);
+            stage.container().style.cursor = "grabbing";
+            console.log("🟢 Pan abilitato manualmente");
+            return;
+          }
+
+          // 🧱 Selezione su oggetto
+          if (currentTool === "select" && e.target !== stage) {
+            console.log("⛔ Clic su oggetto in SELECT → nessun pan");
+            return;
+          }
+
+          // ✏️ Disegna nuovo oggetto
+          if (currentTool === "draw" && e.target === stage) {
+            stage.draggable(false);
+            handleStageClick(e);
+            return;
+          }
+
+          stage.draggable(false);
+          stage.container().style.cursor = "default";
+        }}
+
+        onMouseUp={(e) => {
+          const stage = stageRef.current;
+          if (!stage) return;
+
+          // 🧭 se era pan manuale, il rilascio sarà gestito in onDragEnd
+          if (isManualPan) {
+            console.log("🕐 MouseUp ignorato perché pan manuale ancora attivo");
+            return;
+          }
+
+          stage.draggable((currentTool as Tool) !== "select");
+          stage.container().style.cursor = "default";
+          console.log("🧹 MouseUp → ripristino stato drag=", stage.draggable());
+        }}
+
         onDragStart={(e) => {
           const stage = stageRef.current;
           if (!stage || e.target !== stage) return;
-          console.log("[Stage onDragStart] (vero Stage) starting, draggable=", stage.draggable());
+          stage.container().style.cursor = "grabbing";
+          console.log("🚀 Stage drag start", {
+            tool: currentTool,
+            draggable: stage.draggable(),
+            pos: { x: e.target.x(), y: e.target.y() },
+          });
         }}
+
         onDragMove={(e) => {
           const stage = stageRef.current;
-          if (!stage || e.target !== stage) {
-            // era l'oggetto a muoversi, non lo Stage → esci
-            return;
-          }
+          if (!stage || e.target !== stage) return;
+
+          // NON aggiornare stagePos qui, altrimenti React blocca il movimento
+          if (isManualPan) return;
+
+          // 👇 solo se non è pan manuale (es. resize/fit automatici)
           setStagePos({ x: e.target.x(), y: e.target.y() });
-          if (currentTool === "select") {
-            console.warn("[Stage onDragMove] ATTENZIONE: Stage si muove in SELECT (non dovrebbe).");
-          }
         }}
+
         onDragEnd={(e) => {
           const stage = stageRef.current;
           if (!stage || e.target !== stage) return;
-          setStagePos({ x: e.target.x(), y: e.target.y() });
-          console.log("[Stage onDragEnd] (vero Stage) pos=", { x: e.target.x(), y: e.target.y() });
-        }}
-        scaleX={stageScale}
-        scaleY={stageScale}
-        x={stagePos.x}
-        y={stagePos.y}
-        // FIX: lo stage non è MAI draggable in modalità "select"
-        draggable={(currentTool as Tool) !== "select"}
-      >
 
+          setStagePos({ x: e.target.x(), y: e.target.y() });
+
+          if (isManualPan) {
+            console.log("🏁 Pan manuale dragEnd → disattivo draggable");
+            setIsManualPan(false);
+            stage.draggable((currentTool as Tool) !== "select");
+          }
+
+          stage.container().style.cursor = "grab";
+          console.log("✅ Stage drag end", {
+            tool: currentTool,
+            finalPos: { x: e.target.x(), y: e.target.y() },
+            draggable: stage.draggable(),
+          });
+        }}
+      >
         {/* Sfondo (non interattivo) */}
         <Layer listening={false}>
           {blendedImage && (
