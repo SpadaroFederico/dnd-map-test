@@ -342,6 +342,9 @@ export default function App() {
     // Box di selezione multipla
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  const [gridSize, setGridSize] = useState(250); // dimensione cella in px
+
 
 
 
@@ -636,6 +639,22 @@ useEffect(() => {
         </button>
       </div>
 
+      <button
+        onClick={() => setShowGrid(!showGrid)}
+        style={{
+          marginLeft: 500 ,
+          padding: "8px 14px",
+          background: showGrid ? "#f39c12" : "#555",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          cursor: "pointer",
+        }}
+      >
+        {showGrid ? "Nascondi griglia" : "Mostra griglia"}
+      </button>
+
+
       <div style={{ display: "flex", gap: "8px", marginLeft: "600px" }}>
         <button onClick={() => setTileset("dirt")}>Terra</button>
         <button onClick={() => setTileset("grass")}>Erba</button>
@@ -798,6 +817,7 @@ useEffect(() => {
         }}
 
       >
+
         {/* Sfondo (non interattivo) */}
         <Layer listening={false}>
           {blendedImage && (
@@ -810,6 +830,41 @@ useEffect(() => {
             />
           )}
         </Layer>
+
+        {/* Griglia (sopra lo sfondo) */}
+        {showGrid && blendedImage && (
+          <Layer listening={false}>
+            {/* Linee verticali */}
+            {Array.from(
+              { length: Math.ceil(blendedImage.width / gridSize) + 1 },
+              (_, i) => (
+                <Rect
+                  key={`v-${i}`}
+                  x={i * gridSize}
+                  y={0}
+                  width={10}
+                  height={blendedImage.height}
+                  fill={`rgba(0, 0, 0, ${Math.max(0.15, 0.45 / stageScale)})`}
+                />
+              )
+            )}
+
+            {/* Linee orizzontali */}
+            {Array.from(
+              { length: Math.ceil(blendedImage.height / gridSize) + 1 },
+              (_, j) => (
+                <Rect
+                  key={`h-${j}`}
+                  x={0}
+                  y={j * gridSize}
+                  width={blendedImage.width}
+                  height={10}
+                  fill="rgba(0, 0, 0, 0.35)"  // nero semi-trasparente
+                />
+              )
+            )}
+          </Layer>
+        )}
 
         {/* Oggetti */}
         <Layer>
