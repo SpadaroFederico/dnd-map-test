@@ -1,0 +1,37 @@
+.tool-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #eee;
+}
+
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-group input[type="range"] {
+  width: 100%;
+}
+
+.layer-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.layer-switch button {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #444;
+  background: #222;
+  color: #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.layer-switch button.active {
+  background: #ffd25a;
+  color: #151515;
+  border-color: #ffd25a;
+}

@@ -1,0 +1,21 @@
+.tool-button {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 22px;
+  cursor: pointer;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.tool-button:hover {
+  background: #252525;
+  color: #ffd25a;
+}
+
+.tool-button.active {
+  background: #ffd25a;
+  color: #151515;
+}

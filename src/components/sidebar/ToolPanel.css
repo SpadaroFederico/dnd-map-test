@@ -1,0 +1,19 @@
+.tool-panel {
+  position: fixed;
+  top: 0;
+  left: 64px; /* accanto alla sidebar */
+  height: 100vh;
+  width: 320px;
+  background: #1e1e1e;
+  color: #eee;
+  padding: 16px;
+  border-right: 1px solid #333;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease-in-out;
+  overflow-y: auto;
+  z-index: 9998; /* appena sotto la sidebar */
+}
+
+.tool-panel.open {
+  transform: translateX(0);
+}
