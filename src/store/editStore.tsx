@@ -21,24 +21,34 @@ interface MapObject {
 
 interface EditorState {
   objects: MapObject[];
-  selectedId: string | null;             // compatibilità singola selezione
-  selectedIds: string[];                 // nuova selezione multipla
-  currentTool: "draw" | "select" | "background";
+  selectedId: string | null;
+  selectedIds: string[];
+  currentTool: "draw" | "select" | "background" | "shovel" | null;
+  setCurrentTool: (
+    tool: "draw" | "select" | "background" | "shovel" | null
+  ) => void;
   background: string;
   setBackground: (texture: string) => void;
   addObject: (obj: MapObject) => void;
-  selectObject: (id: string, multi?: boolean) => void;   // aggiornato
+  selectObject: (id: string, multi?: boolean) => void;
   deselectObject: () => void;
   deleteSelectedObject: () => void;
   moveObject: (id: string, x: number, y: number) => void;
-  setTool: (tool: "draw" | "select" | "background") => void;
+  setTool: (tool: "draw" | "select" | "background" | "shovel") => void;
+
+  // 🔹 nuovi stati globali
+  terrain: "dirt" | "grass" | "water";
+  setTerrain: (t: "dirt" | "grass" | "water") => void;
+  radius: number;
+  setRadius: (r: number) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   objects: [],
   selectedId: null,
   selectedIds: [],
-  currentTool: "draw",
+  currentTool: "select",
+  setCurrentTool: (tool) => set({ currentTool: tool }),
   background: "/assets/grass.png",
 
   setBackground: (texture) => set({ background: texture }),
@@ -49,7 +59,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { selectedIds } = get();
 
     if (multi) {
-      // se già selezionato → toglilo, altrimenti aggiungilo
       const newSelection = selectedIds.includes(id)
         ? selectedIds.filter((sid) => sid !== id)
         : [...selectedIds, id];
@@ -80,4 +89,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   setTool: (tool) => set({ currentTool: tool }),
+
+  // 🔹 gestione pala
+  terrain: "grass",
+  setTerrain: (t) => set({ terrain: t }),
+  radius: 80,
+  setRadius: (r) => set({ radius: r }),
 }));

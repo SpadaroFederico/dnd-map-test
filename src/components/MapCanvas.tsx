@@ -5,6 +5,7 @@ import { useEditorStore } from "../store/editStore";
 import DraggableRect from "./DraggableRect";
 import SelectionGroup from "./SelectionGroup";
 import GridLayer from "./GridLayer";
+import ShovelTool from "./tools/ShovelTool";
 
 type Vec2 = { x: number; y: number };
 type Tool = "draw" | "select" | "background";
@@ -355,6 +356,15 @@ export default function MapCanvas({
         gridSize={gridSize}
         stageScale={stageScale}
       />
+
+      {/* 🟩 Layer della pala */}
+      <ShovelTool
+        stageRef={stageRef}
+        stageScale={stageScale}
+        radius={useEditorStore.getState().radius}
+        terrain={useEditorStore.getState().terrain}
+      />
+
 
       {/* Oggetti */}
       <Layer>

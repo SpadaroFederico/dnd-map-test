@@ -2,7 +2,7 @@ import React from "react";
 import { useEditorStore } from "../store/editStore";
 
 interface ToolbarProps {
-  currentTool: string;
+  currentTool: string | null;
   showGrid: boolean;
   setShowGrid: (value: boolean) => void;
   tileset: "grass" | "water" | "dirt";
