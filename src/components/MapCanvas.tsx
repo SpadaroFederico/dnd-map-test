@@ -363,6 +363,8 @@ export default function MapCanvas({
         stageScale={stageScale}
         radius={useEditorStore.getState().radius}
         terrain={useEditorStore.getState().terrain}
+        mapWidth={blendedImage?.width || 4096}
+        mapHeight={blendedImage?.height || 4096}
       />
 
 

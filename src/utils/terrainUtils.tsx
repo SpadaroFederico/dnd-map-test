@@ -74,3 +74,29 @@ export async function generateBlendedTexture(
   await new Promise((res) => (finalImg.onload = res));
   return finalImg;
 }
+
+/** =========================
+ *  Caricamento dinamico di tutte le texture terreno
+ *  ========================= */
+export async function loadTerrainTextures() {
+  const terrains = Object.keys(TILE_PREFIX) as (keyof typeof TILE_PREFIX)[];
+  const textures: Record<string, HTMLImageElement[]> = {};
+
+  for (const type of terrains) {
+    textures[type] = [];
+    const prefix = TILE_PREFIX[type];
+
+    for (let i = 1; i <= TILE_COUNT; i++) {
+      const src = `/assets/tiles/${type}/${prefix}_${i}.png`;
+      const img = await loadImage(src);
+      if (img) textures[type].push(img);
+    }
+  }
+
+  return textures as {
+    grass: HTMLImageElement[];
+    dirt: HTMLImageElement[];
+    water: HTMLImageElement[];
+  };
+}
+
