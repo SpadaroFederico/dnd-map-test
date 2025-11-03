@@ -24,14 +24,13 @@ export default function TerrainPainter({
   const { currentTool } = useEditorStore();
   const [painting, setPainting] = useState(false);
   const [eraseMode, setEraseMode] = useState(false);
-  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [textures, setTextures] = useState<Record<string, HTMLImageElement[]> | null>(null);
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<Konva.Layer | null>(null);
 
-  // Carica tutte le texture all'avvio
+  /** =====================
+   *  INIT TEXTURE
+   *  ===================== */
   useEffect(() => {
     console.log("[INIT] caricamento texture...");
     loadTerrainTextures().then((res) => {
@@ -40,7 +39,9 @@ export default function TerrainPainter({
     });
   }, []);
 
-  // Crea canvas grande quanto la mappa (non lo stage!)
+  /** =====================
+   *  CREA CANVAS (grande quanto la mappa)
+   *  ===================== */
   useEffect(() => {
     if (!mapWidth || !mapHeight) {
       console.warn("[CANVAS] Dimensioni mappa non valide:", mapWidth, mapHeight);
@@ -57,16 +58,14 @@ export default function TerrainPainter({
     const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.fillStyle = "transparent";
-      ctx.fillRect(0, 0, mapWidth, mapHeight); // ✅ usa le dimensioni della mappa
+      ctx.fillRect(0, 0, mapWidth, mapHeight);
       console.log("[CANVAS] Canvas inizializzato correttamente");
     }
-
-    const img = new window.Image();
-    img.src = canvas.toDataURL();
-    setImage(img);
   }, [mapWidth, mapHeight]);
 
-  // Eventi di pittura
+  /** =====================
+   *  EVENTI DI PITTURA
+   *  ===================== */
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !textures) {
@@ -81,7 +80,6 @@ export default function TerrainPainter({
       const transform = stage.getAbsoluteTransform().copy();
       transform.invert();
       const world = transform.point(pointer);
-      setCursorPos(world);
 
       console.log(
         `[MOVE] Pointer: (${pointer.x.toFixed(0)}, ${pointer.y.toFixed(0)}) → World: (${world.x.toFixed(0)}, ${world.y.toFixed(0)})`
@@ -89,7 +87,6 @@ export default function TerrainPainter({
 
       const isEraseNow = e.evt.shiftKey || eraseMode;
       if (painting) {
-        console.log("[MOVE] Sto dipingendo...", isEraseNow ? "(ERASE)" : "(PAINT)");
         paint(world.x, world.y, isEraseNow);
       }
     };
@@ -113,7 +110,7 @@ export default function TerrainPainter({
     };
 
     const handleUp = () => {
-      console.log("[UP] Fine pittura");
+      if (painting) console.log("[UP] Fine pittura");
       setPainting(false);
       setEraseMode(false);
     };
@@ -131,7 +128,9 @@ export default function TerrainPainter({
     };
   }, [painting, radius, terrain, stageScale, currentTool, eraseMode, textures]);
 
-  // Funzione di disegno
+  /** =====================
+   *  FUNZIONE DI PITTURA
+   *  ===================== */
   const paint = (x: number, y: number, erase: boolean) => {
     if (!canvasRef.current || !textures) {
       console.warn("[PAINT] Canvas o texture non pronti");
@@ -156,49 +155,55 @@ export default function TerrainPainter({
       return;
     }
 
-    console.log(
-      `[PAINT] Disegno ${erase ? "gomma" : "pittura"} a (${x.toFixed(0)}, ${y.toFixed(0)})`
-    );
-
     ctx.save();
     ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.clip();
-
     ctx.drawImage(tex, x - radius, y - radius, radius * 2, radius * 2);
     ctx.restore();
 
-    const newImg = new window.Image();
-    newImg.src = canvasRef.current.toDataURL();
-    setImage(newImg);
+    // Forza aggiornamento layer (senza rigenerare l'immagine)
+    if (layerRef.current) {
+      layerRef.current.batchDraw();
+    }
+
+    console.log(
+      `[PAINT] ${erase ? "CANCELLA" : "DISEGNA"} a (${x.toFixed(0)}, ${y.toFixed(0)}) r=${radius}`
+    );
   };
 
-  if (currentTool !== "shovel") return null;
-
+  /** =====================
+   *  DEBUG STATO
+   *  ===================== */
   useEffect(() => {
     const interval = setInterval(() => {
       const stage = stageRef.current;
       if (stage) {
         console.log(
-          `[STATE] Stage pos: (${stage.x().toFixed(0)}, ${stage.y().toFixed(0)}), scale: ${stage.scaleX().toFixed(2)}, painting: ${painting}`
+          `[STATE] Stage pos: (${stage.x().toFixed(0)}, ${stage.y().toFixed(0)}), scale: ${stage.scaleX().toFixed(
+            2
+          )}, painting: ${painting}`
         );
       }
     }, 2000);
     return () => clearInterval(interval);
   }, [stageRef, painting]);
 
+  if (currentTool !== "shovel") return null;
+
+  /** =====================
+   *  RENDER
+   *  ===================== */
   return (
     <Layer ref={layerRef} listening={false}>
-      {image && (
-        <KonvaImage
-          image={image}
-          x={0}
-          y={0}
-          width={mapWidth}      // ✅ dimensioni reali mappa
-          height={mapHeight}    // ✅ dimensioni reali mappa
-        />
-      )}
+      <KonvaImage
+        image={canvasRef.current || undefined} // ✅ canvas diretto
+        x={0}
+        y={0}
+        width={mapWidth}
+        height={mapHeight}
+      />
     </Layer>
   );
 }
