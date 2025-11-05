@@ -11,7 +11,7 @@ import ToolButton from "./ToolButton";
 import ToolPanel from "./ToolPanel";
 import BrushTool from "../tools/BrushTool";
 import MaskTool from "../tools/MaskTool";
-import StampTool from "../tools/StampTool";
+import StampToolPanel from "../tools/StampToolPanel";
 import TextTool from "../tools/TextTool";
 import GridTool from "../tools/GridTool";
 import ShovelToolPanel from "../tools/ShovelToolPanel";
@@ -100,7 +100,7 @@ export default function LeftSidebar() {
       <ToolPanel activeTool={activeTool}>
         {activeTool === "brush" && <BrushTool />}
         {activeTool === "mask" && <MaskTool />}
-        {activeTool === "stamp" && <StampTool />}
+        {activeTool === "stamp" && <StampToolPanel />}
         {activeTool === "text" && <TextTool />}
         {activeTool === "grid" && <GridTool />}
         {activeTool === "shovel" && (

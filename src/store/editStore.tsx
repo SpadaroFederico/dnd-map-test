@@ -19,16 +19,33 @@ interface MapObject {
   __offsetY?: number;
 }
 
+type CoreTool = "draw" | "select" | "background" | "shovel" | "stamp";
+type BrushShape = "circle" | "irregular" | "tile";
+type ActionMode = "add" | "subtract";
+
 interface EditorState {
   objects: MapObject[];
   selectedId: string | null;
   selectedIds: string[];
-  currentTool: "draw" | "select" | "background" | "shovel" | null;
-  setCurrentTool: (
-    tool: "draw" | "select" | "background" | "shovel" | null
-  ) => void;
-  background: string;
-  setBackground: (texture: string) => void;
+  currentTool: CoreTool | null;
+  setCurrentTool: (tool: CoreTool | null) => void;
+
+  brushShape: BrushShape;
+  setBrushShape: (shape: BrushShape) => void;
+
+  roughness: number;
+  setRoughness: (r: number) => void;
+
+  maskEnabled: boolean;
+  setMaskEnabled: (v: boolean) => void;
+
+  actionMode: ActionMode;
+  setActionMode: (m: ActionMode) => void;
+
+  // 🔹 background ora logico, non più path
+  background: "grass" | "dirt" | "water";
+  setBackground: (t: "grass" | "dirt" | "water") => void;
+
   addObject: (obj: MapObject) => void;
   selectObject: (id: string, multi?: boolean) => void;
   deselectObject: () => void;
@@ -36,9 +53,10 @@ interface EditorState {
   moveObject: (id: string, x: number, y: number) => void;
   setTool: (tool: "draw" | "select" | "background" | "shovel") => void;
 
-  // 🔹 nuovi stati globali
+  // 🔹 gestione pala
   terrain: "dirt" | "grass" | "water";
   setTerrain: (t: "dirt" | "grass" | "water") => void;
+
   radius: number;
   setRadius: (r: number) => void;
 }
@@ -49,9 +67,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedIds: [],
   currentTool: "select",
   setCurrentTool: (tool) => set({ currentTool: tool }),
-  background: "/assets/grass.png",
 
-  setBackground: (texture) => set({ background: texture }),
+  brushShape: "circle",
+  setBrushShape: (shape) => set({ brushShape: shape }),
+
+  roughness: 12,
+  setRoughness: (r) => set({ roughness: r }),
+
+  maskEnabled: false,
+  setMaskEnabled: (v) => set({ maskEnabled: v }),
+
+  actionMode: "add",
+  setActionMode: (m) => set({ actionMode: m }),
+
+  // 🌿 nuovo sistema background
+  background: "grass",
+  setBackground: (t) => set({ background: t }),
 
   addObject: (obj) => set((state) => ({ objects: [...state.objects, obj] })),
 
@@ -90,9 +121,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setTool: (tool) => set({ currentTool: tool }),
 
-  // 🔹 gestione pala
   terrain: "grass",
   setTerrain: (t) => set({ terrain: t }),
+
   radius: 80,
   setRadius: (r) => set({ radius: r }),
 }));

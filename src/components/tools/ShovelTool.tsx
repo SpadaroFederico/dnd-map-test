@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Layer, Circle } from "react-konva";
 import Konva from "konva";
 import { useEditorStore } from "../../store/editStore";
-import TerrainPainter from "./TerrainPainter";
+// import TerrainPainter from "../map/TerrainPainter";
 
 interface ShovelToolProps {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -48,7 +48,7 @@ export default function ShovelTool({
 
   return (
     <>
-      {/* layer principale che gestisce il disegno delle texture */}
+      {/* layer principale che gestisce il disegno delle texture
       <TerrainPainter
         stageRef={stageRef}
         stageScale={stageScale}
@@ -56,7 +56,7 @@ export default function ShovelTool({
         terrain={terrain}
         mapWidth={mapWidth}
         mapHeight={mapHeight}
-      />
+      /> */}
 
       {/* cerchio cursore bianco visibile */}
       <Layer listening={false}>

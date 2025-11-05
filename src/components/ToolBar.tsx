@@ -16,6 +16,8 @@ export default function Toolbar({
   tileset,
   setTileset,
 }: ToolbarProps) {
+  const { background, setBackground } = useEditorStore();
+
   return (
     <>
       {/* Toolbar principale */}
@@ -29,6 +31,7 @@ export default function Toolbar({
           zIndex: 10,
         }}
       >
+        {/* Strumenti base */}
         <button
           onClick={() => useEditorStore.getState().setTool("draw")}
           style={{
@@ -115,6 +118,39 @@ export default function Toolbar({
         >
           Acqua
         </button>
+      </div>
+
+      {/* 🔹 Selettore Background (layer principale) */}
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          right: 40,
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+          zIndex: 10,
+        }}
+      >
+        <label style={{ color: "white", fontSize: "14px" }}>Sfondo:</label>
+        <select
+          value={background}
+          onChange={(e) =>
+            setBackground(e.target.value as "grass" | "dirt" | "water")
+          }
+          style={{
+            background: "#333",
+            color: "white",
+            border: "1px solid #444",
+            borderRadius: "6px",
+            padding: "6px 10px",
+            cursor: "pointer",
+          }}
+        >
+          <option value="grass">Erba</option>
+          <option value="dirt">Terra</option>
+          <option value="water">Acqua</option>
+        </select>
       </div>
     </>
   );

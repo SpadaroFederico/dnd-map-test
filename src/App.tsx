@@ -5,7 +5,7 @@ import { useEditorStore } from "./store/editStore";
 import LeftSidebar from "./components/sidebar/LeftSidebar";
 import RightInspector from "./components/RightInspector";
 import Toolbar from "./components/ToolBar";
-import MapCanvas from "./components/MapCanvas";
+import MapCanvas from "./components/map/MapCanvas";
 
 import { useMapHooks } from "./hooks/useMapHooks";
 import { useTerrain } from "./hooks/useTerrain";
@@ -97,27 +97,7 @@ export default function App() {
       <LeftSidebar />
 
       {/* Mappa principale */}
-      <MapCanvas
-        blendedImage={blendedImage}
-        stageRef={stageRef}
-        transformerRef={transformerRef}
-        stageScale={stageScale}
-        stagePos={stagePos}
-        setStageScale={setStageScale}
-        setStagePos={setStagePos}
-        handleWheel={handleWheel}
-        clampPosition={clampPosition}
-        selectionBox={selectionBox}
-        setSelectionBox={setSelectionBox}
-        selectionStart={selectionStart}
-        setSelectionStart={setSelectionStart}
-        isManualPan={isManualPan}
-        setIsManualPan={setIsManualPan}
-        isDraggingObject={isDraggingObject}
-        setIsDraggingObject={setIsDraggingObject}
-        showGrid={showGrid}
-        gridSize={gridSize}
-      />
+      <MapCanvas />
 
       {/* Inspector laterale */}
       {selectedId && <RightInspector />}
